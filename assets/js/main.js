@@ -11,7 +11,6 @@
     10. Play song when click
 */
 
-
 const $ = document.querySelector.bind(document);
 const $$ = document.querySelectorAll.bind(document);
 
@@ -23,9 +22,14 @@ const playBtn = $('.btn-toggle-play');
 const player = $('.player');
 const nextBtn = $('.btn-next');
 const prevBtn = $('.btn-prev');
+const randomBtn = $('.btn-random');
+const repeatBtn = $('.btn-repeat');
+const playlist = $('.playlist');
 
 const app = {
     currentIndex: 0,
+    isRandom: false,
+    isRepeat: false,
     songs: [
         {
             name: 'Anh da tu bo roi day',
@@ -73,9 +77,9 @@ const app = {
 
     // render ra view
     render: function () {
-        const htmls = this.songs.map(song => {
+        const htmls = this.songs.map((song, index) => {
             return `
-                <div class="song">
+                <div class="song ${index === this.currentIndex ? 'active' : ''}" data-index="${index}">
                     <div class="thumb"
                         style="background-image: url('${song.image}')">
                     </div>
@@ -89,7 +93,7 @@ const app = {
                 </div>
             `;
         })
-        $('.playlist').innerHTML = htmls.join('');
+        playlist.innerHTML = htmls.join('');
     },
 
     defineProperties: function () {
@@ -103,14 +107,14 @@ const app = {
     handleEvents: function () {
         const cdWidth = cd.offsetWidth;
 
-        // xử lý cd quay và dùng
+        // xử lý cd quay và dừng
         const cdThumbAnimate = cdThumb.animate([
             {
                 transform: 'rotate(360deg)',
             }
         ], {
             duration: 10000, //10s
-            iteration: Infinity
+            iterations: Infinity
         })
         cdThumbAnimate.pause();
 
@@ -127,11 +131,9 @@ const app = {
         playBtn.onclick = () => {
             if (audio.paused) {
                 audio.play();
-                player.classList.add('playing');
                 cdThumbAnimate.play();
             } else {
                 audio.pause();
-                player.classList.remove('playing');
                 cdThumbAnimate.pause();
             }
         };
@@ -139,11 +141,13 @@ const app = {
         // Khi bài hát được phát
         audio.onplay = function () {
             player.classList.add('playing');
+            cdThumbAnimate.play();
         };
 
         // Khi bài hát bị tạm dừng
         audio.onpause = function () {
             player.classList.remove('playing');
+            cdThumbAnimate.pause();
         };
 
         // Khi tiến độ bài hát thay đổi
@@ -162,13 +166,75 @@ const app = {
 
         // khi next bài hát
         nextBtn.onclick = () => {
-            app.nextSong();
+            if (this.isRandom) {
+                app.playRandomSong();
+            } else {
+                app.nextSong();
+            }
             audio.play();
+            cdThumbAnimate.cancel(); // Reset CD animation
+            cdThumbAnimate.play();
+            this.updateActiveSong();
         }
 
+        // khi prev bài hát
         prevBtn.onclick = () => {
-            app.prevSong();
+            if (this.isRandom) {
+                app.playRandomSong();
+            } else {
+                app.prevSong();
+            }
             audio.play();
+            cdThumbAnimate.cancel(); // Reset CD animation
+            cdThumbAnimate.play();
+            this.updateActiveSong();
+        }
+
+        // khi random bài hát
+        randomBtn.onclick = (e) => {
+            app.isRandom = !app.isRandom;
+            // nếu true toggle-> false và ngược lại
+            randomBtn.classList.toggle('active', app.isRandom);
+        }
+
+        // xử lý phát lại 1 bài hát
+        repeatBtn.onclick = (e) => {
+            app.isRepeat = !app.isRepeat;
+            repeatBtn.classList.toggle('active', app.isRepeat);
+        }
+
+        // xử lý next song khi audio ended
+        audio.onended = () => {
+            if (app.isRepeat) {
+                audio.play();
+                cdThumbAnimate.cancel(); // Reset CD animation
+                cdThumbAnimate.play();
+            } else {
+                // tự bấm nút next khi kết thúc audio
+                nextBtn.click();
+            }
+        }
+
+        // Play song when clicking on it
+        playlist.onclick = (e) => {
+            // closest tìm cha gần nhất có class
+            const songNode = e.target.closest('.song:not(.active)');
+            if (songNode || e.target.closest('.option')) {
+                // Handle when clicking on the song
+                if (songNode) {
+                    app.currentIndex = Number(songNode.dataset.index);
+                    app.loadCurrentSong();
+                    audio.play();
+                    cdThumbAnimate.cancel();
+                    cdThumbAnimate.play();
+                    this.updateActiveSong();
+                }
+
+                // Handle when clicking on the option
+                if (e.target.closest('.option')) {
+                    // Handle option here
+                }
+            }
         }
     },
 
@@ -192,6 +258,27 @@ const app = {
             this.currentIndex = this.songs.length - 1;
         }
         this.loadCurrentSong();
+    },
+
+    playRandomSong: function () {
+        let newIndex;
+        do {
+            newIndex = Math.floor(Math.random() * this.songs.length);
+        } while (this.currentIndex === newIndex);
+
+        this.currentIndex = newIndex;
+        this.loadCurrentSong();
+    },
+
+    updateActiveSong: function () {
+        const songElements = $$('.song');
+        songElements.forEach((song, index) => {
+            if (index === this.currentIndex) {
+                song.classList.add('active');
+            } else {
+                song.classList.remove('active');
+            }
+        });
     },
 
     start: function () {
